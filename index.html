@@ -1,0 +1,201 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tranquil - HackMyVM - Level: Medium - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Tranquil - HackMyVM - Level: Medium - Bericht</h1>
+        <!-- Klasse 'medium' hinzugefügt, damit CSS die korrekte Farbe (Gelb) anwenden kann -->
+        <div class="level-container medium">
+            <!-- Die Farbe wird durch CSS über die Klasse 'medium' gesteuert -->
+            <h2>Medium</h2>
+            <div class="circle">
+                <!-- Die Segmentfarben werden durch CSS über die Klasse 'medium' gesteuert -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <!-- Der innere Kreis verwendet die Standard-Header-Farbe aus dem CSS -->
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">dcode.fr (implizit)</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">cat</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#initial-access">Initial Access</a></li>
+                <li><a href="#poc-initial-access">Proof of Concept: Initial Access</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>192.168.2.126	<span class="command">08:00:27:8d:3e:35</span>	PCS Systemtechnik GmbH</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `arp-scan -l` sendet ARP-Requests ins lokale Netzwerk, um aktive Hosts zu identifizieren. Ein Host mit der IP-Adresse `192.168.2.126` wird gefunden. Die MAC-Adresse (`08:00:27:8d:3e:35`) gehört zum OUI (Organizationally Unique Identifier) von "PCS Systemtechnik GmbH", was ein starker Indikator für eine Oracle VirtualBox-VM ist.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Ziel-IP wurde erfolgreich identifiziert. Die Information, dass es sich wahrscheinlich um eine VM handelt, ist für den Kontext nützlich.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führen Sie einen detaillierten Port-Scan (Nmap) auf die identifizierte IP `192.168.2.126` durch, um offene Ports und Dienste zu ermitteln.<br/><strong>Empfehlung (Admin):</strong> Netzwerksegmentierung und Überwachung von ARP-Scan-Aktivitäten können die Aufklärungsphase für Angreifer erschweren.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -T5 -A 192.168.2.126 -p-</span></div>
+                    <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2022-11-19 00:23 CET
+Nmap scan report for tranquil (192.168.2.126)
+Host is up (0.00015s latency).
+Not shown: 65534 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">21/tcp open  ssh     OpenSSH 8.4p1 Debian 5 (protocol 2.0)</span>
+|_ftp-bounce: ERROR: Script execution failed (use -d to debug)
+| ssh-hostkey:
+|   <span class="command">3072 0e033b7800291dba60860ed3bb7e3c04 (RSA)</span>
+|   <span class="command">256 2a474d9cce0761caf0ca588b5b0fd4db (ECDSA)</span>
+|_  <span class="command">256 6c4250a560e90f370fbeecd12074299c (ED25519)</span>
+MAC Address: 08:00:27:8D:3E:35 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.6
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.16 ms tranquil (192.168.2.126)
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein Nmap-Scan (`-sS` SYN-Scan, `-sC` Standard-Skripte, `-T5` schnelles Timing, `-A` Aggressiver Scan inkl. OS/Version/Skripte/Traceroute, `-p-` alle Ports) wird auf das Ziel durchgeführt. Das bemerkenswerteste Ergebnis ist, dass **Port 21/tcp offen** ist, aber **SSH (OpenSSH 8.4p1 Debian 5)** darauf läuft, nicht der erwartete FTP-Dienst. Die Nmap-Skripte bestätigen dies, indem das FTP-Bounce-Skript fehlschlägt, aber SSH-Hostkeys angezeigt werden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies ist ein sehr wichtiger Fund und der zentrale Trick dieser Maschine. Ein Dienst läuft auf einem nicht standardmäßigen Port (SSH auf 21 statt 22). Dies kann dazu führen, dass automatisierte Tools oder oberflächliche Scans den Dienst falsch identifizieren oder übersehen. Der primäre Angriffsvektor ist somit SSH auf Port 21.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Interagieren Sie mit Port 21 über einen SSH-Client (`ssh -p 21 ...`). Standard-FTP-Clients werden fehlschlagen. Suchen Sie nach Benutzernamen und Passwörtern für diesen SSH-Dienst.<br/><strong>Empfehlung (Admin):</strong> Verwenden Sie nach Möglichkeit Standardports für Dienste, um Verwirrung zu vermeiden. Wenn nicht-standardmäßige Ports verwendet werden, dokumentieren Sie diese sorgfältig und stellen Sie sicher, dass Firewall-Regeln dies berücksichtigen. Härten Sie die SSH-Konfiguration (z.B. Key-Authentifizierung erzwingen, Passwort-Login deaktivieren, Fail2ban verwenden).</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl http://192.168.2.126:21</span></div>
+                    <pre>
+<span class="command"> tranquil.jpg" </span>
+
+
+<span class="command"> <!-- We are one, humans, computers and ports.
+- guru --></span>
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Es wird versucht, mit `curl` eine HTTP-Anfrage an den offenen Port 21 zu senden. Da auf Port 21 ein SSH-Server lauscht, kommt keine gültige HTTP-Antwort zustande. `curl` zeigt jedoch die rohen Daten an, die der SSH-Server initial sendet. In dieser Ausgabe finden sich die Zeichenkette `" tranquil.jpg"` und ein auskommentierter HTML-Text, der die Worte "We are one, humans, computers and ports." und den Namen `"guru"` enthält.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Obwohl die `curl`-Anfrage fehlschlägt, liefert sie entscheidende Hinweise:
+                1.  Ein Dateiname: `tranquil.jpg`. Diese Datei muss wahrscheinlich auf anderem Wege (z.B. über einen versteckten Webserver oder einen anderen Dienst) gefunden und heruntergeladen werden.
+                2.  Ein potenzieller Benutzername: `guru`. Dies ist höchstwahrscheinlich der Benutzername für den SSH-Login auf Port 21.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notieren Sie den Benutzernamen `guru`. Versuchen Sie, die Datei `tranquil.jpg` zu finden und herunterzuladen (der Bericht zeigt nicht, wie dies geschieht, es wird aber im nächsten Schritt vorausgesetzt). Untersuchen Sie die Bilddatei auf versteckte Informationen (Steganografie).<br/><strong>Empfehlung (Admin):</strong> Konfigurieren Sie Dienste so, dass sie keine potenziell nützlichen Informationen in ihren initialen Verbindungsdaten oder Bannern preisgeben.</p>
+
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access</h2>
+            <p class="analysis"><strong>Analyse:</strong> Der Bericht impliziert, dass die Datei `tranquil.jpg` erfolgreich beschafft wurde (die Methode wird nicht gezeigt). Diese Bilddatei enthält offenbar eine Nachricht, die mit dem Hexahue-Chiffre kodiert ist.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <pre>
+http://192.168.2.126:21/tranquil.jpg <!-- Vermutlich nicht der korrekte Pfad -->
+<span class="command">https://www.dcode.fr/hexahue-cipher</span>
+<span class="command">12,5,5,17,4,2,13,14</span>
+<span class="password">KEEPCALM</span>
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Die Notizen deuten auf folgende Schritte hin:
+                1.  Die Datei `tranquil.jpg` wurde untersucht (vermutlich visuell, da sie einen Hexahue-Cipher enthielt).
+                2.  Ein Online-Tool (`dcode.fr`) wurde verwendet, um den Hexahue-Cipher zu entschlüsseln.
+                3.  Die aus dem Bild extrahierte oder dargestellte Chiffre war `12,5,5,17,4,2,13,14`.
+                4.  Die Entschlüsselung ergab das Wort `<span class="password">KEEPCALM</span>`.
+            Hexahue ist eine Chiffre, die Farben verwendet, um Buchstaben oder Zahlen darzustellen. Das Bild enthielt wahrscheinlich eine Farbsequenz, die der Zahlenfolge entsprach.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Erfolg!** Die steganografische Analyse der Bilddatei `tranquil.jpg` mittels Hexahue-Entschlüsselung hat das Passwort `<span class="password">KEEPCALM</span>` ergeben. In Kombination mit dem zuvor gefundenen Benutzernamen `guru` sind nun die Zugangsdaten für SSH auf Port 21 bekannt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie die gefundenen Zugangsdaten (`guru` / `<span class="password">KEEPCALM</span>`), um sich per SSH auf Port 21 am Zielsystem anzumelden.<br/><strong>Empfehlung (Admin):</strong> Vermeiden Sie das Speichern oder Verstecken von Passwörtern in öffentlich zugänglichen Dateien, auch nicht mittels Steganografie. Setzen Sie auf sichere Authentifizierungsmethoden.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh -p 21 guru@tranquil</span></div>
+                     <pre><!-- Kein Output gezeigt, aber Erfolg wird impliziert --> </pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `ssh -p 21 guru@tranquil` wird ausgeführt, um eine SSH-Verbindung zum Zielhost `tranquil` (192.168.2.126) auf dem nicht standardmäßigen Port 21 mit dem Benutzernamen `guru` herzustellen. Es wird impliziert, dass das Passwort `<span class="password">KEEPCALM</span>` erfolgreich verwendet wurde.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Initialer Zugriff erfolgreich!** Durch die Kombination der Ergebnisse aus Port-Scan (SSH auf Port 21), Banner-Grabbing/Curl (Benutzername `guru`, Hinweis auf Bild) und Steganografie (Passwort `KEEPCALM` aus `tranquil.jpg`) konnte eine SSH-Sitzung aufgebaut werden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Beginnen Sie sofort mit der Enumeration als Benutzer `guru`. Suchen Sie nach der User-Flag (oft `user.txt` im Home-Verzeichnis) und nach Wegen zur Privilegienausweitung (z.B. `sudo -l`, SUID-Binaries, Cronjobs, Kernel-Exploits).<br/><strong>Empfehlung (Admin):</strong> Das Passwort `KEEPCALM` ist kompromittiert und muss sofort geändert werden. Implementieren Sie starke Passwortrichtlinien. Überwachen Sie SSH-Logins und -Aktivitäten.</p>
+
+        </section>
+
+        <section id="poc-initial-access">
+            <h2>Proof of Concept: Initial Access</h2>
+            <p class="analysis"><strong>Kurzbeschreibung:</strong> Der initiale Zugriff auf das System "Tranquil" erfolgte durch eine Kombination aus Reconnaissance und Steganografie. Ein Nmap-Scan offenbarte einen SSH-Dienst, der auf dem unüblichen Port 21 lief. Eine `curl`-Anfrage an diesen Port enthüllte einen Hinweis auf einen Benutzernamen (`guru`) und eine Bilddatei (`tranquil.jpg`). Diese Bilddatei wurde (auf nicht gezeigte Weise) beschafft und enthielt eine mit dem Hexahue-Chiffre kodierte Nachricht. Die Entschlüsselung dieser Nachricht mithilfe eines Online-Tools ergab das Passwort (`KEEPCALM`).</p>
+            <p class="evaluation"><strong>Voraussetzungen:</strong> Netzwerkzugriff auf das Ziel, Nmap, Curl, ein Tool zur Hexahue-Entschlüsselung (z.B. dcode.fr), Beschaffung der Bilddatei `tranquil.jpg`.</p>
+            <p class="analysis"><strong>Schritt-für-Schritt-Anleitung:</strong>
+                1. Ziel-IP identifizieren (`arp-scan`, `nmap`).
+                2. Offene Ports und Dienste scannen (`nmap`), dabei SSH auf Port 21 identifizieren.
+                3. Mit `curl http://ZIEL-IP:21` Hinweise auf Benutzernamen (`guru`) und Bilddatei (`tranquil.jpg`) extrahieren.
+                4. Bilddatei `tranquil.jpg` beschaffen (Methode im Bericht nicht dokumentiert).
+                5. Bild analysieren und Hexahue-Cipher (`12,5,5,17,4,2,13,14`) extrahieren.
+                6. Cipher auf `dcode.fr` entschlüsseln, um das Passwort `KEEPCALM` zu erhalten.
+                7. Mit `ssh -p 21 guru@ZIEL-IP` und dem Passwort `KEEPCALM` anmelden.
+            </p>
+            <p class="evaluation"><strong>Erwartetes Ergebnis:</strong> Erfolgreicher SSH-Login als Benutzer `guru` auf dem Zielsystem.</p>
+            <p class="recommendation"><strong>Risikobewertung:</strong> Mittel. Die Kombination aus einem Dienst auf einem nicht standardmäßigen Port und einem Passwort, das durch Steganografie versteckt ist, stellt eine Hürde dar, ist aber für einen gezielten Angreifer überwindbar. Die Hauptschwachstellen sind das schwache (wenn auch versteckte) Passwort und die Preisgabe von Hinweisen.<br/><strong>Empfehlungen:</strong> Starke, einzigartige Passwörter verwenden. Keine Passwörter oder Hinweise in öffentlich zugänglichen Ressourcen verstecken. Dienste auf Standardports betreiben oder sorgfältig dokumentieren und absichern. SSH-Härtung durchführen.</p>
+        </section>
+
+
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+                 <div class="flag-entry">
+                     <!-- Pfad angenommen, da nicht im Text spezifiziert -->
+                     <div class="flag-command">cat /home/guru/user.txt</div>
+                     <div class="flag-value"><span class="password">HMVbecauseweare</span></div>
+                 </div>
+                 <div class="flag-entry">
+                     <!-- Pfad angenommen -->
+                     <div class="flag-command">cat /root/root.txt</div>
+                     <div class="flag-value"><span class="password">HMVyourfriends</span></div>
+                 </div>
+             </div>
+         </section>
+        <p class="analysis"><strong>Analyse:</strong> Der Bericht listet die User- und Root-Flags auf. Die Befehle zum Auslesen (`cat user.txt`, `cat root.txt`) werden gezeigt, aber nicht der Kontext oder die Schritte, die zur Erlangung der notwendigen Berechtigungen (insbesondere Root) führten.</p>
+        <p class="evaluation"><strong>Bewertung:</strong> Die Flags wurden erfolgreich gefunden, was das Erreichen der Hauptziele (User- und Root-Zugriff) bestätigt. Der Weg zur Root-Flagge bleibt im bereitgestellten Text jedoch undokumentiert.</p>
+        <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Dokumentieren Sie die Schritte zur Privilegienausweitung von `guru` zu `root` im vollständigen Bericht.<br/><strong>Empfehlung (Admin):</strong> Analysieren Sie die (hier nicht gezeigten) Schwachstellen, die die Privilegienausweitung ermöglichten, und beheben Sie diese.</p>
+
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 19. November 2022</p>
+    </footer>
+</body>
+</html>
